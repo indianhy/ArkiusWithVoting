@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html>
+
+<head> 
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        /* Create three unequal columns that floats next to each other */
+        .column {
+            float: left;
+            padding: 70px;
+            height: 100%;
+            /* Should be removed. Only for demonstration */
+        }
+
+        .left,
+        .right {
+            width: 20%;
+            height: 100%;
+        }
+
+        .info {
+            margin: 0 auto;
+            background-color: #ddd;
+            padding: 2px 2px;
+            word-wrap: break-word;
+            font-family: "Lucida Console", Monaco, monospace;
+            font-size: 12px;
+        }
+
+        .infoleft {
+            max-width: 21ch;
+            margin: 0 auto;
+            margin-bottom: 18px;
+            background-color: #ddd;
+            padding: 12px 24px;
+            word-wrap: break-word;
+            font-family: "Lucida Console", Monaco, monospace;
+            font-size: 15px;
+        }
+
+        .infoRight {
+            max-width: 21ch;
+            margin: 0 auto;
+            margin-bottom: 18px;
+            background-color: #ddd;
+            padding: 12px 24px;
+            word-wrap: break-word;
+            font-family: "Lucida Console", Monaco, monospace;
+            font-size: 15px;
+        }
+
+        .middle {
+            width: 60%;
+            padding: 20px;
+            color: #000;
+        }
+
+        /* Clear floats after the columns */
+        .row:after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+
+        .card {
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+            transition: 0.3s;
+            width: 100%;
+            border-radius: 5px;
+            padding: 2%;
+        }
+
+        /* .card:hover {
+        box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
+        } */
+
+        /* img {
+        border-radius: 5px 5px 0 0;
+        } */
+
+        .container {
+            padding-top: 20px;
+            padding-bottom: 5px;
+            padding-left: 16px;
+            padding-right: 16px;
+        }
+
+        .container1 {
+            padding: 2px;
+        }
+    </style>
+    <link rel="stylesheet" type="text/css" href="ispin.css" />
+    <script defer src="https://unpkg.com/ispin"></script>
+    <script src="./postVoteabi.js"></script>
+    <script src="./Membershipabi.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/magic-sdk/dist/magic.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.2.11/dist/web3.min.js"></script>
+    <script>
+        const magic = new Magic("pk_test_7967AF810E630E08", {
+            network: "rinkeby"
+        });
+        const web3 = new Web3(magic.rpcProvider);
+
+        let postVoteAddress = "0x3cA36EBb08B8ABe274D3633aE2EC1be91579cE0F";
+        let membershipAddress = "0x6aaE7f6aBDD8bEe56F939d74fCF9B1F1535003A4";
+
+        let senderAccount;
+        let owner;
+        let messageId;
+        let KYCdone;
+        let userPaid;
+
+        const allPosts = {}
+
+        let pVcontract = new web3.eth.Contract(
+            JSON.parse(contractABI),
+            postVoteAddress
+        );
+
+        let Memcontract = new web3.eth.Contract(
+            JSON.parse(contractABI1),
+            membershipAddress
+        );
+
+        const render = async () => {
+            const isLoggedIn = await magic.user.isLoggedIn();
+
+            /* Show login form if user is not logged in */
+            let authHtml = `
+          <div class="container">
+            <h1>Please sign up or login</h1>
+            <form onsubmit="handleLogin(event)">
+              <input type="email" name="email" required="required" placeholder="Enter your email" />
+              <button type="submit">Send</button>
+            </form>
+          </div>
+        `;
+
+            let userHtml = "";
+            let postHtml = "";
+            let contractHtml = "";
+            let postedHtml = "";
+            let Postedmessage = "";
+
+            const target = document.querySelector("#app");
+            if (isLoggedIn) {
+                /* Get user metadata including email */
+                const userMetadata = await magic.user.getMetadata();
+                //const network = await web3.eth.net.getNetworkType();
+                const userAddress = (await web3.eth.getAccounts())[0];
+                //const userBalance = web3.utils.fromWei(
+                 //   await web3.eth.getBalance(userAddress) // Balance is in wei
+                //);
+
+                const info = await Memcontract.methods.info(userAddress).call();
+
+                senderAccount = userAddress;
+
+                authHtml = `
+            <div class="container">
+              <p><strong>Current user:</strong> ${userMetadata.email}</p>
+              <label id="votingPoints"><strong>Voting Points :</strong> ${info.VotingPoints}</label><br><br>
+              <button onclick="handleLogout()">Logout</button>
+            </div>
+          `;
+        //         userHtml = `
+        //     <div class="container">
+        //       <h1>Ethereum address</h1>
+        //       <div class="info">
+        //         <a href="https://rinkeby.etherscan.io/address/${userAddress}" target="_blank">${userAddress}</a>
+        //       </div>
+        //       <h1>Network</h1>
+        //       <div class="info">${network}</div>
+        //       <h1>Balance</h1>
+        //       <div class="info">${userBalance} ETH</div>
+        //     </div>
+        //   `;
+                postHtml = `
+            
+            <form onsubmit=handleSendPost(event) class="container">
+              <div class="card">
+                <h3>Create Post</h3>
+                <textarea cols="40" rows="5" id="name" name="status" class="full-width" required="required" placeholder="Enter your post" style="resize:none; height:120px; width:100%; padding: 5%;" ></textarea>
+                <br><br>
+                <label> Voting Method </label><br>
+                <input type="checkbox" id="weight1" name="voting" value="Quadratic" onclick="onlyOne(this)">
+                <label for="weight1"> Quadratic </label><br>
+                <input type="checkbox" id="weight2" name="voting" value="Conventional" onclick="onlyOne(this)">
+                <label for="weight2"> Conventional </label><br>
+                <div class="container">
+                    <button type="submit" value="Post" id="post_status">Post</button>
+                </div>
+              </div>
+           `;
+
+                const currentMessage = "Arkius Membership Token"//await contract.methods.name().call();
+                // const info = await Memcontract.methods.info(userAddress).call();
+                const userPaid1 = info.MemberPaid;//await Memcontract.methods.kycGetter(userAddress).call();
+                const KYCdone1 = info.MemberKYC//await Memcontract.methods.paymentGetter(userAddress).call();
+                //const currentMessage = ""//await Memcontract.methods.name().call();
+                const isMember = info.id==0?false:true//await Memcontract.methods.isMember(userAddress).call();
+                //const totalPost = await pVcontract.methods.totalPost().call();
+
+                KYCdone = KYCdone1;
+                userPaid = userPaid1;
+
+                // document.getElementById(`weight-input${posts[i]}`).onchange = ()=> {
+                //             let v = document.getElementById(`weight-input${posts[i]}`).value
+                //             console.log({v});
+                //             document.getElementById(`voteWeight${posts[i]}`).innerText = `P: ${v*v}`;
+                //         }
+
+                handleDisplayStatus().then( (posts) => {
+                        handleDisplayComment().then( (posts) => {
+                        for (var i = posts.length - 1; i >= 0; i--) {
+                        let input = document.getElementById(`weight-input${posts[i]}`);
+                        let log = document.getElementById(`voteWeight${posts[i]}`);
+
+                        input.oninput = handleInput;
+
+                        function handleInput(e) {
+                            console.log({ e })
+                            log.textContent = `Points : ${(e.target.value) * (e.target.value)}`;
+                        }
+                    }
+                    }
+                );
+                        for (var i = posts.length - 1; i >= 0; i--) {
+                        let input = document.getElementById(`weight-input${posts[i]}`);
+                        let log = document.getElementById(`voteWeight${posts[i]}`);
+
+                        input.oninput = handleInput;
+
+                        function handleInput(e) {
+                            console.log({ e })
+                            log.textContent = `Points : ${(e.target.value) * (e.target.value)}`;
+                        }
+                    }
+                    }
+                )
+
+            }
+            target.innerHTML =
+                authHtml + postHtml + contractHtml;
+        };
+
+
+        // const handleSetPoint = async (value) => {
+        //     if (value == null || value == "") window.alert("Null value")
+        //     else {
+        //         await Memcontract.methods.pointsSetter(senderAccount, value).send({ from: senderAccount});
+        //         let temp1 = document.getElementById(`PointSetter`);
+        //         temp1.innerText = "";
+        //         let temp2 = document.getElementById(`PointGetter`);
+        //         temp2.innerText = value;
+        //         console.log("Success");
+        //     }
+        // }
+
+        const setTime = (detail) => {
+
+            var d = new Date();
+            d.setTime(detail.timestamp * 1000);
+            var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+            date = d.getDate();
+            month = months[d.getMonth()];
+            year = d.getFullYear();
+            day = days[d.getDay()];
+            hour = d.getHours();
+            minute = d.getMinutes();
+            timestamp = month + "" + date.toString().padStart(2, '0') //+ " " + hour.toString().padStart(2, '0') + ":" + minute.toString().padStart(2, '0');
+            // console.log("1", timestamp);
+            return timestamp;
+        }
+
+        const handleDeletePost = async (msg) => {
+            const singlePost = document.getElementById(`${msg}`);
+            await pVcontract.methods.deletePost(msg).send({from: senderAccount});
+            console.log("Deleted");
+        }
+
+        const handleDisplayStatus = async () => {
+            const posts = await pVcontract.methods.allPosts().call()
+            
+            for (var i = posts.length - 1; i >= 0; i--) {
+                const singlePost = await pVcontract.methods.getPost(posts[i]).call({ from: senderAccount});
+                if (singlePost.votingMechanism == 0) continue;
+                const userVoteCount = await pVcontract.methods.memberVote(posts[i], senderAccount).call();
+
+                const target = document.querySelector("#app");
+                let contractHtml = "";
+                const timestamp = setTime(singlePost);     
+                // console.log({singlePost});
+                if (userPaid && KYCdone){
+                    if (singlePost.parent==0)
+                    {
+                        allPosts[posts[i]]=singlePost;
+                        contractHtml = `
+                        <div class="card">
+                        <p id="id"></p>
+                        <label name="User" ><strong>User ID:</strong> ${singlePost.user}</label> 
+                        <br>
+                        <label name="votemech" ><strong>Voting Method:</strong> ${singlePost.votingMechanism==1?"Quadratic":"Conventional"}</label><br>
+                        <label name="time" ><strong>Time:</strong> ${timestamp}</label>
+                        <br><br>
+
+                        <div >${singlePost.value}</div>
+                        <div class="container">                  
+                            <button id="upvote${posts[i]}" onclick=handleUpvote(${posts[i]})>Upvotes</button>
+                            <button id="vote${posts[i]}" onclick=handleVote(${posts[i]})>Votes</button>
+                            <button id="downvote${posts[i]}" onclick=handleDownvote(${posts[i]})>Downvotes</button>
+                            <br> <br>
+                            <input id="weight-input${posts[i]}"  name="weight-input${posts[i]}" style="display:block" type="number" min="1" max="100" defaultValue="1" step="1" >
+                            <label id = "voteWeight${posts[i]}" style="color:red"></label>
+                            
+                            </div>
+                            <div class="container" id="comment${posts[i]}"></div>
+                            <textarea id="cmntname${posts[i]}" class="full-width" required="required" placeholder="Comment..." style="resize:none; width:100%; padding: 1%;" ></textarea><br><br>
+                            <label> Voting Method </label><br>
+                            <input type="checkbox" id="cmntweight1${posts[i]}" name="voting" value="Quadratic" onclick="onlyOne(this)">
+                            <label for="weight1"> Quadratic </label><br>
+                            <input type="checkbox" id="cmntweight2${posts[i]}" name="voting" value="Conventional" onclick="onlyOne(this)">
+                            <label for="weight2"> Conventional </label><br><br>
+                            <button id="cmnt${posts[i]}" onclick=handlecomment(${posts[i]})>Comment</button>
+                        </div>`;
+                        target.innerHTML = target.innerHTML + contractHtml;
+            const voteButton = document.getElementById(`upvote${posts[i]}`);
+            const voteButton1 = document.getElementById(`downvote${posts[i]}`);
+            const voteText = document.getElementsByName(`weight-input${posts[i]}`);
+            console.log({voteText:voteText[0]})
+            if (singlePost.votingMechanism != 1) voteText[0].style.display = "none";
+            
+            if (userVoteCount.upvotes>0) {
+                voteButton.disabled = true;
+                voteButton1.disabled = true;
+                voteText[0].style.display = "none";
+                voteButton.innerHTML = `Upvotes: ${userVoteCount.upvotes}`;
+            }
+            if (userVoteCount.downvotes>0) {
+                voteButton.disabled = true;
+                voteButton1.disabled = true;
+                voteText[0].style.display = "none";
+                voteButton1.innerHTML = `Downvotes: ${userVoteCount.downvotes}`;
+            }
+            
+            console.log({selectElement: document.getElementById(`weight-input${posts[i]}`)})
+            
+                    }
+                }
+                else {
+                if (singlePost.parent==0) 
+                    contractHtml = `
+                <div class="card">
+                  <p id="id"> </p>
+                  <br><label name="User">User ID: ${singlePost.user}<label> <br>
+                    <label name="time">Time: ${timestamp}</label>
+                  <br><br>
+                  
+                  <div class="info">${singlePost.value}</div>
+                </div>
+              `;
+            }
+            }
+
+            return posts;
+        };
+
+        const getPoints = () => {
+                let v = document.getElementById(`weight-input${posts[i]}`).value
+                console.log({ v });
+                document.getElementById(`voteWeight${posts[i]}`).innerText = `P: ${v * v}`;
+            }
+
+        const handleDisplayComment = async () => {
+            const posts = await pVcontract.methods.totalCmnt().call()
+            
+            for (var i = posts.length - 1; i >= 0; i--) {
+
+                const singlePost = await pVcontract.methods.getPost(posts[i]).call({from: senderAccount});
+                if (singlePost.timestamp == 0) continue;
+                const target = document.querySelector("#app");
+                let contractHtml = "";
+                const timestamp = setTime(singlePost);     
+                // console.log({singlePost});
+
+                const userVoteCount = await pVcontract.methods.memberVote(posts[i], senderAccount).call();
+
+                if (userPaid && KYCdone){
+                    if (singlePost.parent!=0)
+                    {
+                        allPosts[posts[i]]=singlePost;
+                        let variable = document.getElementById(`comment${singlePost.parent}`);
+                        commentHtml = `
+                        <div class="card">
+                        <p id="id"></p>
+                        <label name="User" class="info">User ID: ${singlePost.user}</label> <br>
+                        <label name="votemech" class="info">Voting Method: ${singlePost.votingMechanism==1?"Quadratic":"Conventional"}</label><br>
+                        <label name="time" class="info">Time: ${timestamp}</label>
+                        <br><br>
+
+                        <div class="info">${singlePost.value}</div>
+                        <div class="container">
+                            <button id="upvote${posts[i]}" onclick=handleUpvote(${posts[i]})>Upvotes</button>
+                            <button id="vote${posts[i]}" onclick=handleVote(${posts[i]})>Votes</button>
+                            <button id="downvote${posts[i]}" onclick=handleDownvote(${posts[i]})>Downvotes</button>
+                            <br> <br>
+                            <input id="weight-input${posts[i]}"  name="weight-input${posts[i]}" style="display:block" type="number" min="1" max="100" defaultValue="1" step="1" >
+                            <label id = "voteWeight${posts[i]}" style="color:red"></label>
+                            <p id="cmnt${posts[i]}"></p>
+                            </div>
+                            <div class="container1" id="comment${posts[i]}"></div>
+                        </div>`;
+                        variable.innerHTML += commentHtml
+
+                        const voteButton = document.getElementById(`upvote${posts[i]}`);
+                        const voteButton1 = document.getElementById(`downvote${posts[i]}`);
+                        const voteText = document.getElementsByName(`weight-input${posts[i]}`);
+                        console.log({voteText:voteText[0]})
+                        if (singlePost.votingMechanism != 1) voteText[0].style.display = "none";
+                        
+                        if (userVoteCount.upvotes>0) {
+                            voteButton.disabled = true;
+                            voteButton1.disabled = true;
+                            voteText[0].style.display = "none";
+                            voteButton.innerHTML = `Upvotes: ${userVoteCount.upvotes}`;
+                        }
+                        
+                        if (userVoteCount.downvotes>0) {
+                            voteButton.disabled = true;
+                            voteButton1.disabled = true;
+                            voteText[0].style.display = "none";
+                            voteButton1.innerHTML = `Downvotes: ${userVoteCount.downvotes}`;
+                        }
+
+                        console.log({selectElement: document.getElementById(`weight-input${posts[i]}`)})
+
+            }
+                    }
+                }
+           return posts; 
+        };
+
+        const handleUpvote = async (msg) => {
+            const post = allPosts[msg];
+            console.log({msg,post});
+            const voteButton = document.getElementById(`upvote${msg}`);
+            const voteButton1 = document.getElementById(`downvote${msg}`);
+            const voteButton2 = document.getElementById(`vote${msg}`);
+            const votingPoints = document.getElementById(`votingPoints`);
+            let votingMech;
+            if(post.votingMechanism == 1)
+            votingMech = document.getElementById(`weight-input${msg}`).value;
+            else votingMech = 1;
+            
+
+            if (votingMech == null || votingMech == "") window.alert("Null value")
+
+            else {
+                const Meminfo = votingPoints.innerText;//await Memcontract.methods.info(senderAccount).call();
+                let votingPointsN = parseInt(Meminfo.split(':')[1])
+                console.log({votingPointsN,votingMech})
+                if (votingMech*votingMech <= votingPointsN){
+                    console.log("Enough points")
+                    voteButton.disabled = true;
+                    voteButton.innerText = "Upvoting";
+                    await pVcontract.methods.upvote(msg, votingMech).send({ from: senderAccount });
+                    // const singlePost = await pVcontract.methods.getPost(msg, senderAccount).call();
+                    // handleSetPoint((Meminfo.points-(value*value)));
+
+                    votingPoints.innerText = `Voting Points : ${votingPointsN-(votingMech*votingMech)}`
+                    voteButton1.innerText = `Downvote`;
+                    voteButton.innerText = `Upvoted: ${votingMech}`;
+                }
+                else{
+                    window.alert("Not enough Voting Points!");
+                    return;
+                }
+                //value.innerText = "";
+                voteButton1.disabled = true;
+                voteButton.disabled = true;
+                voteButton2.innerText = "Votes";
+                console.log("Voted");
+                if (post.votingMechanism == 1){
+                    document.getElementById(`weight-input${msg}`).style.display = "none";
+                document.getElementById(`voteWeight${msg}`).innerText = ``;}
+            }
+        };
+
+        const handleDownvote = async (msg) => {
+                const post = allPosts[msg];
+                console.log({ msg, post });
+                const voteButton = document.getElementById(`downvote${msg}`);
+                const voteButton1 = document.getElementById(`upvote${msg}`);
+                const voteButton2 = document.getElementById(`vote${msg}`);
+                const votingPoints = document.getElementById(`votingPoints`);
+                let votingMech;
+                if (post.votingMechanism == 1)
+                    votingMech = document.getElementById(`weight-input${msg}`).value;
+                else votingMech = 1;
+
+                if (votingMech == null || votingMech == "") window.alert("Null value")
+
+                else {
+                    const Meminfo = votingPoints.innerText;//await Memcontract.methods.info(senderAccount).call();
+                    let votingPointsN = parseInt(Meminfo.split(':')[1])
+                    console.log({ votingPointsN, votingMech })
+                    if (votingMech * votingMech <= votingPointsN) {
+                        console.log("Enough points")
+                        voteButton.disabled = true;
+                        voteButton.innerText = "Downvoting";
+                        await pVcontract.methods.downvote( msg, votingMech).send({ from: senderAccount });
+                        // const singlePost = await pVcontract.methods.getPost(msg, senderAccount).call();
+                        // handleSetPoint((Meminfo.points-(value*value)));
+
+                        votingPoints.innerText = `Voting Points : ${votingPointsN - (votingMech * votingMech)}`
+                        voteButton1.innerText = `Upvote`;
+                        voteButton.innerText = `Downvoted: ${votingMech}`;
+                    }
+                    else {
+                        window.alert("Not enough Voting Points!");
+                        return;
+                    }
+
+                    voteButton1.disabled = true;
+                    voteButton.disabled = true;
+                    voteButton2.innerText = "Votes";
+                    console.log("Voted");
+                    if (post.votingMechanism == 1)
+                        document.getElementById(`weight-input${msg}`).style.display = "none";
+                        document.getElementById(`voteWeight${msg}`).innerText = ``;
+                }
+            };
+        
+        const handleVote = async (msg) => {
+            // console.log(msg);
+            const totalVotes = await pVcontract.methods.totalVote(senderAccount, msg).call();
+            const temp = document.getElementById(`vote${msg}`);
+            console.log(temp);
+            temp.innerText =  `Votes : ${totalVotes}`;
+            console.log("Voted");
+        };
+
+
+        const handleLogin = async e => {
+            e.preventDefault();
+            const email = new FormData(e.target).get("email");
+            if (email) {
+                /* One-liner login 🤯 */
+                await magic.auth.loginWithMagicLink({ email });
+                render();
+            }
+        };
+
+        const handlecomment = async (prntId) => {
+            console.log("Commenting");
+            // console.log(prntId);
+            const cmntvalue = document.getElementById(`cmntname${prntId}`).value;
+            console.log(cmntvalue);
+            const button = document.getElementById(`cmnt${prntId}`);
+            const checkboxes = document.getElementsByName(`voting`);
+            console.log("1", checkboxes);
+            var i = 0;
+            for (var j=1; j<=checkboxes.length; j++) {
+                var checkBox = document.getElementById(`cmntweight${j}${prntId}`);
+                if (checkBox.checked == true) {
+                    i = j;
+                    console.log(i);
+                    checkBox.checked = false;
+                    break;
+                }
+            }
+            if (i == 0) {
+                window.alert("Select Voting Mechanism");
+                return;
+            }
+            if (cmntvalue == null || cmntvalue == ""  ) {
+                console.log("2", cmntvalue);
+                window.alert("Invalid Comment Value");
+                return;
+            }
+            button.disabled = true;
+            button.innerText = "Commenting...";
+            document.getElementById(`cmntname${prntId}`).value = "";
+            const cmntMSG = await pVcontract.methods.postComment(prntId, cmntvalue, i).send({ from: senderAccount });
+            const cmntId = await pVcontract.methods.totalCmnt().call();
+            const cmntDetail = await pVcontract.methods.getPost(cmntId[cmntId.length-1]).call({from:senderAccount});
+            // console.log(cmntId)
+            console.log("Commented");
+            // console.log(cmntDetail);
+            allPosts[cmntId[cmntId.length-1]] = cmntDetail;
+            button.disabled = false;
+            button.innerText = "Comment";
+            let commentHtml = `
+                <div class="card">
+                    <p id="id"></p>
+                        <label name="User" class="info">${cmntDetail.user}</label> <br>
+                        <label name="votemech" class="info">Voting Method: ${cmntDetail.votingMechanism==1?"Quadratic":"Conventional"}</label><br>
+                        <label name="time" class="info">${setTime(cmntDetail)}</label>
+                        <br><br>
+                        
+                    <div class="info">${cmntDetail.value}</div>
+                    <div class="container">
+
+                        <button id="upvote${cmntId[cmntId.length-1]}" onclick=handleUpvote(${cmntId[cmntId.length-1]})>Upvote</button>
+                        <button id="vote${cmntId[cmntId.length-1]}" onclick=handleVote(${cmntId[cmntId.length-1]})>Votes</button>
+                        <button id="downvote${cmntId[cmntId.length-1]}" onclick=handleDownvote(${cmntId[cmntId.length-1]})>Downvote</button><br><br>
+                        <input id="weight-input${cmntId[cmntId.length-1]}"  name="weight-input${cmntId[cmntId.length-1]}" style="display:block" type="number" min="1" max="100" defaultValue="1" step="1" >
+                        <label id = "voteWeight${cmntId[cmntId.length-1]}" style="color:red"></label>
+                        <p id="cmnt${cmntId[cmntId.length-1]}"></p>
+                    </div>
+                    <div class="container1" id="comment${cmntId[cmntId.length-1]}"></div>
+                </div>`;
+                const temp1 = document.getElementById(`comment${cmntDetail.parent}`);
+                temp1.innerHTML = commentHtml + temp1.innerHTML;
+                const voteText = document.getElementsByName(`weight-input${cmntId[cmntId.length-1]}`);
+                console.log({voteText:voteText[0]})
+                if (cmntDetail.votingMechanism != 1) voteText[0].style.display = "none";
+            // render();
+        }
+
+        const handleSendPost = async e => {
+            e.preventDefault();
+            const message = new FormData(e.target).get("status");
+            var checkboxes = document.getElementsByName('voting')
+            // console.log(checkboxes.length); return;
+            var i = 0;
+            for (var j=1; j<=checkboxes.length; j++) {
+                var checkBox = document.getElementById(`weight${j}`);
+                if (checkBox.checked == true) {
+                    i = j;
+                    console.log(i);
+                    break;
+                }
+            }
+            if (i == 0) {
+                window.alert("Select Voting Mechanism");
+                return;
+            }
+            if (message.length > 0) {
+                const postStatus = document.getElementById("post_status");
+                postStatus.disabled = true;
+                postStatus.innerText = "Posting...";
+                console.log("Posting");
+                await pVcontract.methods.addPost(message, i).send({ from: senderAccount });
+                console.log("Posted");
+                render();
+            }
+        };
+
+        const handleLogout = async () => {
+            await magic.user.logout();
+            window.open('./index.html', '_self', false)
+        };
+
+        function onlyOne(checkbox) {
+                var checkboxes = document.getElementsByName('voting')
+                checkboxes.forEach((item) => {
+                    if (item !== checkbox) item.checked = false
+                })
+            }
+    </script>
+</head>
+
+<body onload="render()">
+
+    <!-- <h2>Feed</h2> -->
+
+    <div class="row">
+        <div class="column left" style="background-color:#ffff;">
+        </div>
+        <div id="app" class="column middle" style="background-color:#abdcf8;">
+            <div class="container">Loading...</div>
+            <!-- <div class="card">
+            <textarea cols="40" rows="5" id="name" name="status" class="full-width" required="required" placeholder="Enter your post" style="resize:none; height:120px; width:100%; padding: 5%;" ></textarea>
+            <div class="container">
+                <button type="submit" value="Post" id="post_status" onclick="">Post</button>
+            </div>
+          </div>
+          <div class="card">
+            <label for="name">Enter Id:</label>
+            <input type="number" id="name" name="name">
+            <input type="submit" value="Submit">
+            <br><br>
+            <textarea cols="40" rows="5" id="return" name="name" style="resize:none; height:120px; width:100%; padding: 5%;"></textarea>
+            <div class="container">
+              <button>Upvote</button>
+              <button>Downvote</button>
+              <button>Votes</button>
+              <id="votes"></id>
+            </div>
+          </div> -->
+        </div>
+        <div class="column right" style="background-color:#ffff;">
+        </div>
+    </div>
+
+</body>
+
+</html>
